@@ -540,6 +540,37 @@ seven rows above did not resolve the way we might have hoped for a tidier
 demo (the confidence-override case). Reported as-is rather than reframed or
 dropped - a fabricated failure story would be worse than an honest partial one.
 
+## 13g. Milestone: Minimal Case-List UI (done, 2026-08-21)
+
+`runtime/ui_app.py` + `runtime/templates/` - a separate FastAPI app (kept
+apart from `webhook_app.py` on purpose; a demo UI has no business sharing a
+process with the production webhook receiver). Case list shows acted-on vs.
+left-alone with the reason; case detail shows the full audit trail.
+
+**Two real bugs caught building this, both fixed, both worth keeping as
+examples:**
+1. Shared a single module-level SQLite connection across requests -
+   crashed under FastAPI's threadpool for sync routes
+   (`sqlite3.ProgrammingError: SQLite objects created in a thread can only
+   be used in that same thread`). Fixed: open a fresh connection per request.
+2. Called `Jinja2Templates.TemplateResponse` with the older
+   `(name, {"request": request, ...})` signature; the installed Starlette
+   (1.6.0) expects `(request, name, {...})` and failed with a confusing
+   `TypeError: unhashable type: 'dict'` several layers down in Jinja2's
+   template cache, not at the call site itself. Fixed by matching the
+   current API and moving `request` out of the context dict.
+
+**Another honest, unstaged finding from populating the UI with real cases:**
+tried to get a genuine "left alone" (`STOP`) example for demo variety. A
+₹350 case, 45 days overdue, 2 prior failed contact attempts - a textbook
+case for `STOP` per the synthetic environment's own calibration (§13b) -
+still got `ESCALATE` from the live model, not `STOP`. Not forced into a
+nicer-looking result: reported as observed. Possibly reflects a real bias in
+this model toward recommending *some* action over recommending none, echoing
+the confidence-calibration finding in §13f (D2) - another data point for why
+the deterministic policy layer, not model self-assessment, is what should be
+trusted to enforce "sometimes the right call is to stop."
+
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 
 - Exact recovery-rate curves per signal combination (calibrate against plausible

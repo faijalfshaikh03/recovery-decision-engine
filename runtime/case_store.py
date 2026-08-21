@@ -54,6 +54,11 @@ def get_case(conn: sqlite3.Connection, case_id: str) -> Optional[RuntimeCase]:
     )
 
 
+def get_all_cases(conn: sqlite3.Connection) -> list[RuntimeCase]:
+    rows = conn.execute("SELECT case_id FROM cases ORDER BY created_at DESC").fetchall()
+    return [get_case(conn, r["case_id"]) for r in rows]
+
+
 def get_case_by_payment_link(conn: sqlite3.Connection, payment_link_id: str) -> Optional[RuntimeCase]:
     row = conn.execute(
         "SELECT case_id FROM cases WHERE razorpay_payment_link_id = ?", (payment_link_id,)
