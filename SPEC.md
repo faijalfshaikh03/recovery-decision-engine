@@ -349,6 +349,41 @@ considered after the core engine is solid.
 5. What happened next? — payment arrives → `STOP`, or promise breaks →
    `RE_EVALUATE` → `ESCALATE`.
 
+## 13b. Milestone: Synthetic Environment + Oracle + Baselines (done, 2026-08-21)
+
+Implemented in `env/` (schemas, generator, oracle, baselines, metrics) and
+`scripts/run_baseline_eval.py`, with `tests/test_env.py` covering the harness
+itself (10 tests passing).
+
+**A real calibration bug was caught and fixed here, not glossed over:** the
+first version of the economics never produced STOP as optimal, ever, in a
+10,000-case batch. Root cause: `WAIT` had near-zero cost, so any positive
+recovery probability trivially beat `STOP`. Fixed by giving `WAIT` a real
+carrying cost (opportunity cost of capital, scaling with amount), narrowing
+the `LOW` value bucket so "low value" genuinely means cheap-enough-to-write-off,
+and correlating the "distressed debt" archetype with the specific taxonomy
+corner (low value + already-exhausted + no promise) where `STOP` is
+economically reachable rather than leaving it as a diluted independent draw.
+`STOP` now appears at ~1% of cases - rare but real and demonstrable, which is
+the more defensible story anyway (most receivables genuinely are worth one
+cheap attempt; only a narrow minority aren't). Locked in with a regression
+test (`test_stop_is_reachable_at_a_real_but_low_rate`).
+
+**First real report (2000 cases, seed=42), see `recon/baseline_eval_report.json`:**
+
+| policy | oracle_agreement | mean_regret | %_of_oracle_value | false_escalation_rate |
+|---|---|---|---|---|
+| oracle | 100.0% | 0.00 | 100.0% | 0.0% |
+| always_pursue | 33.1% | 5776.88 | 80.8% | 0.0% |
+| fixed_cadence | 35.8% | 7994.79 | 73.4% | 0.0% |
+| simple_heuristic | 31.4% | 4657.63 | 84.5% | 53.5% |
+
+Notable finding worth carrying into the demo: `simple_heuristic` gets closest
+to the oracle on raw value (84.5%) but does it by escalating 53.5% of the time
+when it shouldn't - a concrete demonstration that value-captured alone isn't
+sufficient, exactly the reason `false_escalation_rate` is tracked as its own
+diagnostic rather than folded into one blended score.
+
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 
 - Exact recovery-rate curves per signal combination (calibrate against plausible
