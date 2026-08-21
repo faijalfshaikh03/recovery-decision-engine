@@ -13,6 +13,12 @@ class ExtractionResult(BaseModel):
 
     promised_date_days_from_now: Optional[int] = None
     promised_amount: Optional[float] = None
+    # Explicit, not inferred downstream from date arithmetic: does the note's
+    # own wording say the deadline already passed, is still upcoming, or
+    # there's no promise at all? Leaving this implicit was a real gap - the
+    # recommendation step was under-weighting broken-vs-pending status when
+    # it had to infer it indirectly (see SPEC.md milestone notes).
+    promise_status: str = "none"  # "none" | "pending" | "broken"
     extraction_confidence: float = Field(ge=0.0, le=1.0)
     sentiment: str = "unclear"
     has_dispute_mention: bool = False

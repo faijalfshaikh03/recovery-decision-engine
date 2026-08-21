@@ -408,9 +408,76 @@ literal whitelist via JSON schema enum, so most malformed-action attempts are
 caught before they even reach `agent/parsing.py` - the parsing boundary is a
 second, independent layer of defense, not the only one.
 
-Next: run `scripts/run_agent_eval.py` against real Claude calls once
-`ANTHROPIC_API_KEY` is set, to get extraction accuracy and regret numbers for
-the real pipeline (not just the oracle/baselines in `run_baseline_eval.py`).
+## 13d. Milestone: Real Agent Pipeline Run + a Genuine Bug Found and Fixed (2026-08-21)
+
+**Provider note:** Anthropic API billing didn't activate as expected (account
+showed $0 credit despite trial-credit policy) - rather than block on
+resolving that, switched to Groq's free tier (no card required). This was a
+one-line config change (`LLM_PROVIDER=groq`), not a rewrite, because
+`agent/llm_client.py` was built provider-agnostic from the start. Model used:
+`openai/gpt-oss-120b` via Groq (the originally-assumed `llama-3.3-70b-versatile`
+no longer exists on Groq's current model list - checked via `client.models.list()`
+rather than guessing a second time).
+
+**First real run (25 cases, seed=7), against the actual Claude/Groq pipeline
+end to end - extraction → recommendation → policy:**
+- 0/25 parse failures, 100% promise detection accuracy, ~0% amount extraction
+  error - the extraction step itself was solid from the start
+- 0/25 policy overrides observed in this batch - the guardrail precedence
+  logic is fully tested with hand-crafted inputs (22/22 unit tests) but
+  hasn't yet been exercised by a real low-confidence/malformed model output;
+  worth deliberately constructing adversarial cases later to confirm it
+  triggers on live output too, not just synthetic test strings
+- Oracle agreement 52% (13/25) - clearly beats all three baselines (33.1% /
+  35.8% / 31.4% on the 2000-case run)
+- Mean regret 7141.57 - worse than 2 of 3 baselines despite the better
+  agreement rate, driven almost entirely by two outlier cases
+
+**Root cause, investigated rather than shrugged off:** the two worst cases
+(`case_00023`, `case_00008`) both had correct extraction (near-zero amount
+error) but bad recommendations - `REMIND` on a promise that was still
+credible and pending (should have been `WAIT`), and `WAIT` on a promise that
+had already broken (should have been `ESCALATE`). The `ExtractionResult`
+schema never explicitly captured pending-vs-broken; the recommendation step
+had to infer it indirectly and was under-weighting the signal.
+
+**Fix 1 - schema/prompt:** added an explicit `promise_status: "none"|"pending"|"broken"`
+field to `ExtractionResult`, extracted directly from the note's own wording,
+and told the recommendation prompt to weigh it heavily (`pending` → usually
+`WAIT`, don't intervene just to seem proactive; `broken` → `WAIT` is usually
+wrong, patience already failed once). Reran the same 25 cases: mean regret
+7141.57 → 3840.29 (-46%). `case_00023` fully fixed (WAIT/regret=0). But
+`case_00008` was **unchanged** - regret still 64851.96.
+
+**Fix 2 - the real root cause was in our own data, not the model:** checked
+what `case_00008`'s extraction actually produced and found `promise_status`
+was extracted as `'pending'`, not `'broken'`. The underlying synthetic
+contact note read *"customer said 'definitely by 4 days' previously, still no
+sign of the ₹108022"* - genuinely ambiguous wording even to a careful human
+reader, since it never states the 4-day deadline had already elapsed. This
+was a bug in `env/generator.py`'s BROKEN-outcome template, not a model
+reasoning failure. Rewrote the template to be temporally unambiguous
+("...within {days} days of that conversation - that deadline has now passed
+and there's still no sign of payment"). Reran: `promise_status` now correctly
+extracted as `'broken'` with 0.99 confidence.
+
+**Final rerun after both fixes:** mean regret 7141.57 → 1539.04 (**-78% total**).
+
+**The single most useful number from this whole cycle:** oracle agreement
+rate stayed at exactly 52% (13/25) across all three runs, completely flat,
+while regret fell 78%. Agreement rate would have shown zero improvement.
+This is a live, unstaged demonstration of the exact methodological argument
+in §10 - value/regret is the metric that actually reveals what changed;
+raw agreement rate hides it completely.
+
+| run | mean_regret | oracle_agreement |
+|---|---|---|
+| baseline (before either fix) | 7141.57 | 52.0% |
+| after `promise_status` schema/prompt fix | 3840.29 | 52.0% |
+| after fixing the ambiguous BROKEN template | 1539.04 | 52.0% |
+
+Reports saved: `recon/agent_eval_report_before.json` (first run),
+`recon/agent_eval_report.json` (final, post-fix).
 
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 

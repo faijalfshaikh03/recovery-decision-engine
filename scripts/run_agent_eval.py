@@ -7,10 +7,12 @@ hidden ground truth and regret against the oracle, same as run_baseline_eval.
 Usage: python scripts/run_agent_eval.py [n_cases]
 """
 
+import io
 import json
 import sys
 from pathlib import Path
 
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from dotenv import load_dotenv

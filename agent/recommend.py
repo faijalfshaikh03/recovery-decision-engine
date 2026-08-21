@@ -31,7 +31,18 @@ SYSTEM_PROMPT = (
     "STOP - not economically worth pursuing further.\n\n"
     "expected_recovery must be a realistic number given the amount owed, not "
     "an aspirational one. If evidence is weak, conflicting, or sparse, say so "
-    "in `reason` and reflect it with a lower confidence rather than guessing."
+    "in `reason` and reflect it with a lower confidence rather than guessing.\n\n"
+    "Weigh promise_status heavily, it is usually the deciding signal:\n"
+    "- 'pending' (a credible promise hasn't reached its deadline yet): WAIT is "
+    "usually correct. Further contact right now is often wasted effort and "
+    "cost when the customer has already committed and the deadline hasn't "
+    "arrived - don't recommend REMIND or ESCALATE just to seem proactive.\n"
+    "- 'broken' (the deadline already passed unpaid): WAIT is usually wrong - "
+    "patience already failed once, so further waiting rarely helps. Lean "
+    "toward REMIND or ESCALATE depending on how many prior attempts there "
+    "have already been.\n"
+    "- 'none': decide based on days_past_due, prior intervention history, and "
+    "reliability signals alone."
 )
 
 

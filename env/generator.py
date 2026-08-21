@@ -48,8 +48,9 @@ _CONTACT_NOTE_TEMPLATES = {
     PromiseOutcome.BROKEN: [
         "Customer promised ₹{amt} within {days} days last time we spoke, "
         "but the deadline has passed with no payment.",
-        "Follow-up call: customer said 'definitely by {days} days' previously, "
-        "still no sign of the ₹{amt}.",
+        "Follow-up call: customer had previously committed to paying ₹{amt} "
+        "within {days} days of that conversation - that deadline has now "
+        "passed and there's still no sign of payment.",
         "Second broken commitment - customer had promised ₹{amt} but hasn't paid.",
     ],
 }
