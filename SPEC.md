@@ -216,6 +216,28 @@ depth. **Status: docs-verified, not yet live-verified** — confirmed against of
 Razorpay documentation; actual auth/behavior against a real test account is the next
 step (§Recon) before this is finalized.
 
+**Confirmed live in sandbox (2026-08-21, `recon/` scripts + browser checkout):**
+- Auth via Basic Auth (key_id, key_secret) against `https://api.razorpay.com/v1` — works
+- `POST /payment_links` — works, but **customer.contact with recurring digits is
+  rejected** (`"Recurring digits in customer contact are disallowed"`) — undocumented
+  validation rule we hit directly, not in any doc we'd read
+- `accept_partial` defaults to `false` on creation — must set explicitly `true` to
+  exercise the partial-payment path later
+- The generic "universal" test card `4111 1111 1111 1111` (commonly used across
+  other providers) is **rejected as an international card** on Razorpay's India
+  checkout. The correct domestic test card is `4100 2800 0000 1007` (Visa). Razorpay
+  also documents specific test cards for specific failure reasons (insufficient
+  funds, timeout, declined, auth failed, gateway error) — a real signal source for
+  case data later, not just synthetic guessing.
+- Test-mode checkout redirects to a mock bank page with explicit Success/Failure
+  buttons — confirms docs' description of the sandbox flow
+- After a successful test payment, independently re-fetched via API (not trusted
+  from the browser alone): Payment Link `status: "paid"`, `amount_paid` matches;
+  `GET /payments/{id}` shows `status: "captured"`, `international: false`,
+  card network/last4 correct
+- Webhook configuration requires Dashboard login (no general API for it on a
+  standard merchant account) — done manually, not automatable by an agent
+
 **Confirmed real capabilities (docs):**
 - Create Payment Link (standard/UPI) — `POST`
 - Fetch single / all Payment Links — `GET`
