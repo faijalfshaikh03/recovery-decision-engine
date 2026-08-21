@@ -165,13 +165,19 @@ Success is framed as: *how close do we get to the oracle, and do we beat baselin
 
 ## 9. Failure Lab (built in from day one)
 
-| # | Failure | Required behavior |
-|---|---|---|
-| A | Stale state — system thinks invoice unpaid, payment already arrived | Refuse further intervention; re-verify before any action |
-| B | Duplicate event — same promise/webhook arrives twice | State transition must be idempotent; no duplicate action |
-| C | Conflicting signals — poor history but a fresh partial payment | AI recommendation must surface uncertainty, not silently pick one signal |
-| D | Invalid model output — e.g. AI proposes an out-of-whitelist or malformed action | Schema/policy layer rejects it; logged, not executed |
-| E | Action succeeds but verification fails/unclear | Move to `PENDING_VERIFICATION`, never straight to `FAILED` or `RECOVERED` |
+| # | Failure | Required behavior | Grounding |
+|---|---|---|---|
+| A | Duplicate webhook — same event delivered twice | Dedupe on `x-razorpay-event-id`; second delivery is a no-op | Razorpay: at-least-once delivery is documented, not assumed |
+| B | Out-of-order webhook — e.g. `paid` arrives before `partially_paid` is processed | Never trust "last event wins"; check current state before applying a transition | Razorpay explicitly warns delivery order isn't guaranteed |
+| C | Invalid/unverifiable signature | Reject before processing; log and drop | Real security control — `X-Razorpay-Signature`, HMAC-SHA256 over raw body |
+| D | Webhook says paid, but this is business-critical — don't trust it blindly | Independently poll the relevant API before marking `RECOVERED` | Razorpay's own guidance: poll for business-critical sync, webhooks are async |
+| E | Invalid model output — AI proposes an out-of-whitelist or malformed action | Schema/policy layer rejects it; logged, not executed | Our own agent-level safety failure |
+| F | Action succeeds but verification is ambiguous (e.g. request timed out) | Move to `PENDING_VERIFICATION`, never straight to `FAILED` or `RECOVERED` | Combines B and D — don't guess, re-query |
+
+Discipline note carried over: these are targets to deliberately stress-test (replay
+an event, corrupt a signature, force a timeout), and A–D are grounded in Razorpay's
+own documented platform behavior, not invented — but the README reports what
+actually happened when we ran them, not a pre-written narrative.
 
 Each of these should be a reproducible test case with a before/after log — this is
 the literal "what broke at 2am, how you got out" material for the README.
@@ -239,6 +245,22 @@ demo cases do.
   the real notification endpoint, so this is now literally accurate, not simulated.
 - No Subscriptions/eNACH/mandate API work in v1 — not needed for the promise-to-pay
   workflow and out of scope for the time available
+
+**Webhook handling (non-negotiable part of the MVP loop, not optional hardening):**
+`verify X-Razorpay-Signature (HMAC-SHA256, raw body) → dedupe on x-razorpay-event-id
+→ persist event → return 2xx within the 5s window → process asynchronously →
+poll the relevant API before trusting a "paid" state → apply transition`. This
+isn't gold-plating — a synchronous LLM call inside the handler risks the timeout
+and a self-inflicted duplicate delivery.
+
+**Tool boundary (read / act / event):**
+- Read: internal case context; Payment Link status; payment/order state
+  (Orders/Payments-based verification chain — adopt only if cheap once in the
+  sandbox, not a separate research track)
+- Act: create Payment Link; send/resend notification
+- Event: Payment Link webhooks
+- Explicitly out of v1 unless the sandbox makes a compelling case: Invoices API,
+  Customers API, Route, Smart Collect, Subscriptions, Payouts, Disputes
 
 ## 12. MVP Boundary
 
