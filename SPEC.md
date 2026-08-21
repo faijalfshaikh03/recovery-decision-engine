@@ -384,6 +384,34 @@ when it shouldn't - a concrete demonstration that value-captured alone isn't
 sufficient, exactly the reason `false_escalation_rate` is tracked as its own
 diagnostic rather than folded into one blended score.
 
+## 13c. Milestone: AI Extraction/Recommendation + Policy Engine (done, 2026-08-21)
+
+Implemented in `agent/` (extraction + recommendation, calls Anthropic Claude
+via forced tool-use for structured output - see `agent/llm_client.py`) and
+`policy/` (deterministic guardrails, zero LLM calls). 22/22 tests passing,
+all of them running without any API key - the policy engine and the
+`agent/parsing.py` safe-parse boundary are tested with hand-crafted inputs,
+not live model calls, so the guardrail logic is verified independently of
+whether the model behaves.
+
+**Policy precedence, fixed and explainable, in `policy/engine.py`:**
+1. Hard attempt limit → forced `STOP`, wins even over a confident recommendation
+2. Malformed/unparseable AI output → forced `ESCALATE`, never silently dropped
+3. Implausible `expected_recovery` (>1.2x the actual amount) → forced `ESCALATE`
+   even if the output was schema-valid - catches a plausible-looking but wrong
+   number, not just a malformed one
+4. Low-confidence recommendation → forced `ESCALATE` rather than trusted
+5. Otherwise, the AI's recommendation stands
+
+Structured-output schema for `recommend_action` constrains `action` to the
+literal whitelist via JSON schema enum, so most malformed-action attempts are
+caught before they even reach `agent/parsing.py` - the parsing boundary is a
+second, independent layer of defense, not the only one.
+
+Next: run `scripts/run_agent_eval.py` against real Claude calls once
+`ANTHROPIC_API_KEY` is set, to get extraction accuracy and regret numbers for
+the real pipeline (not just the oracle/baselines in `run_baseline_eval.py`).
+
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 
 - Exact recovery-rate curves per signal combination (calibrate against plausible
