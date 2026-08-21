@@ -46,6 +46,20 @@ input were already a clean structured field, a rules engine would suffice. The
 promised date, promised amount, and confidence must be *extracted* from this text,
 not handed to the system pre-parsed.
 
+## 2b. Case Category Taxonomy (data generator must cover all of these)
+
+The synthetic generator should deliberately produce cases across each axis below,
+not just random draws — this is what turns the evaluation into a real stress test
+of the decision boundary rather than an average-case demo:
+
+- **Signal quality:** clean / noisy / missing / conflicting
+- **Case value:** high-amount / low-amount (tests the economics, §6)
+- **Promise outcome:** kept / broken / no promise made
+- **Intervention history:** first contact / repeated prior attempts / prior escalation
+
+Report metrics broken down by these categories, not just in aggregate — an honest
+per-category breakdown is stronger evidence than a single blended number.
+
 ## 3. Action Whitelist
 
 Deliberately small, for clean evaluation:
@@ -161,6 +175,15 @@ Success is framed as: *how close do we get to the oracle, and do we beat baselin
 
 Each of these should be a reproducible test case with a before/after log — this is
 the literal "what broke at 2am, how you got out" material for the README.
+
+**Important discipline:** these are stress-test *targets*, not a pre-written
+narrative. It's legitimate to deliberately construct scenarios likely to surface
+them (replay a webhook on purpose, kill a request mid-flight, feed an adversarial
+prompt) — that's normal engineering practice. But the README must report what
+actually happened when we ran them, including if the first attempt didn't break the
+way we expected, or broke somewhere else entirely. A fabricated failure story is
+worse than no failure story — the whole point of this criterion is that it's hard
+to fake.
 
 ## 10. Metrics (reported honestly, with failure analysis attached)
 
