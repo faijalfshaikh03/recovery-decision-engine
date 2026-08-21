@@ -209,6 +209,15 @@ to fake.
 - Unnecessary-intervention rate
 - Named worst-error categories (e.g. "ambiguous promise language," "sparse history")
 
+## 10b. Hard Safety Rule — Test Mode Only
+
+This project never touches real money, in any form, at any stage — not for the
+demo, not for the video, not for anything. Only Razorpay **test-mode** keys
+(`rzp_test_...`) and test cards are used. Any code that talks to Razorpay must
+verify the key prefix and refuse to run otherwise (see `recon/` scripts for the
+pattern — this check must be carried into every future script/service, not just
+the recon ones). No live keys are ever generated for this project, full stop.
+
 ## 11. Razorpay Integration Scope (v1)
 
 Kept deliberately minimal — the differentiator is the decision layer, not payment-rail

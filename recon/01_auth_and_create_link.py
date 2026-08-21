@@ -20,7 +20,9 @@ if not KEY_ID or not KEY_SECRET:
     sys.exit(1)
 
 if not KEY_ID.startswith("rzp_test_"):
-    print(f"WARNING: key id does not look like a test-mode key: {KEY_ID[:12]}...")
+    print(f"REFUSING TO RUN: key id is not a test-mode key ({KEY_ID[:12]}...). "
+          f"This project must never touch live Razorpay keys or real money.")
+    sys.exit(1)
 
 BASE = "https://api.razorpay.com/v1"
 auth = (KEY_ID, KEY_SECRET)

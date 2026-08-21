@@ -12,6 +12,13 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 KEY_ID = os.environ["RAZORPAY_KEY_ID"].strip()
 KEY_SECRET = os.environ["RAZORPAY_KEY_SECRET"].strip()
+
+if not KEY_ID.startswith("rzp_test_"):
+    raise SystemExit(
+        f"REFUSING TO RUN: key id is not a test-mode key ({KEY_ID[:12]}...). "
+        f"This project must never touch live Razorpay keys or real money."
+    )
+
 BASE = "https://api.razorpay.com/v1"
 auth = (KEY_ID, KEY_SECRET)
 
