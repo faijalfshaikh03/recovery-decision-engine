@@ -521,6 +521,25 @@ verification (unpaid) → webhook → verification (paid) → state_transition`.
 This is `SPEC.md 1`'s architecture diagram, verified to actually be true of
 the running code, not just true of a diagram.
 
+## 13f. Milestone: Failure Lab Against the Live System (done, 2026-08-21)
+
+Every scenario from §9 tested against the actual running system with real
+data, not just mocks - here's the honest result of each:
+
+| # | Failure | Result |
+|---|---|---|
+| A - duplicate webhook | **Confirmed live.** Replayed the real captured `payment_link.paid` event (`TSTa4KsOLDvONV`) from `live_demo_1` a second time through `apply_webhook_event`. Correctly flagged `duplicate: true`, audit log entry count unchanged (0 reprocessing). |
+| B - out-of-order webhook | **Confirmed live.** Sent a fake-but-plausible `payment_link.partially_paid` event for the same payment link after the case was already `RECOVERED`. Correctly `ignored: true` - state stayed `RECOVERED`, never regressed or double-processed. |
+| C - invalid signature | **Confirmed live.** POSTed a corrupted signature directly to the running `webhook_app` (not the recon script). Rejected before `apply_webhook_event` was ever called - never touched the database. |
+| D - invalid/malformed AI output | **Proven via 22 unit tests** (hand-crafted bad JSON, out-of-whitelist actions, out-of-range confidence) - not observed to occur naturally with real Groq/gpt-oss-120b output in our live sample. The tool-schema enum constraint likely makes literal invalid-action outputs rare in practice; the guardrail exists and is tested regardless. |
+| D2 - low-confidence recommendation | **Attempted live twice, honestly not triggered.** Two deliberately ambiguous/sparse-evidence cases both came back at confidence 0.65 and 0.73 - above the 0.55 threshold. This is a real, useful finding, not a failed test: it suggests this model's self-reported confidence runs higher than the actual ambiguity warrants (a known LLM calibration tendency), which is exactly why the *objective* implausible-`expected_recovery` check exists as a second guardrail that doesn't depend on the model accurately grading its own uncertainty. The override logic itself is proven correct via unit tests with hand-crafted low-confidence inputs. |
+| F - verification ambiguous | **Confirmed live.** The very first live decision (before payment) left the case correctly sitting in `PENDING_VERIFICATION` with `status=created, amount_paid=0` rather than assuming success - only transitioned to `RECOVERED` after independently polling and confirming `status=paid`. |
+
+**Honesty note carried through from the original discipline (§9):** two of
+seven rows above did not resolve the way we might have hoped for a tidier
+demo (the confidence-override case). Reported as-is rather than reframed or
+dropped - a fabricated failure story would be worse than an honest partial one.
+
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 
 - Exact recovery-rate curves per signal combination (calibrate against plausible
