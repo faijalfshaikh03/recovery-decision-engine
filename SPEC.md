@@ -479,6 +479,48 @@ raw agreement rate hides it completely.
 Reports saved: `recon/agent_eval_report_before.json` (first run),
 `recon/agent_eval_report.json` (final, post-fix).
 
+## 13e. Milestone: Full Live End-to-End Run (done, 2026-08-21)
+
+Implemented in `runtime/` - `db.py` (SQLite; `webhook_events.event_id` is a
+PRIMARY KEY, so Failure A dedup is DB-enforced, not an in-memory set that a
+restart would lose), `case_store.py`, `razorpay_client.py` (same test-mode-only
+hard check as the recon scripts), `case_service.py` (the actual orchestration:
+extract → recommend → policy → real Razorpay action → verify → state update),
+and `webhook_app.py` (FastAPI, signature verification → dedup → fast ack →
+state engine). 31/31 tests passing, all state-machine/idempotency logic
+tested via mocks (no live API calls needed for correctness).
+
+**Real bug caught before the live run:** `_observed_from_case` had
+`days_past_due` hardcoded to 0, a placeholder left over from scaffolding. The
+first live decision correctly (given that wrong input) recommended `WAIT` -
+a legitimate decision given what it was told, but wrong information. Added a
+proper `days_past_due` column and threaded it through instead of leaving the
+placeholder in place.
+
+**Full live run, real money never involved, everything else real:**
+1. Created one case, ₹48,000, 22 days overdue, no contact yet
+2. `run_decision` → AI recommended `REMIND` (correct reasoning: no promise,
+   22 days overdue, first outreach, negative sentiment) → policy passed it
+   through unmodified → real `POST /payment_links` created `plink_TSTVlfLRDII9EC`
+   → case → `PENDING_VERIFICATION` → immediately polled the real API
+   (`status=created, amount_paid=0`, correctly not yet paid)
+3. Paid the real link through actual browser checkout (validated domestic
+   test card) - completed successfully
+4. Real Razorpay webhook arrived at the real tunnel → real `webhook_app.py`
+   → signature verified → `payment_link.paid` matched to `live_demo_1` by
+   `razorpay_payment_link_id` lookup → **independently re-polled the API
+   rather than trusting the webhook payload** → confirmed `status=paid,
+   amount_paid=4800000` → case → `RECOVERED`
+5. Two unrelated events (`payment.authorized`, `payment.captured` - the
+   same "extra events beyond what was subscribed to" behavior noted in the
+   recon phase) arrived first and were handled gracefully - correctly
+   recognized as carrying no `payment_link` entity, logged, no crash
+
+Full audit trail for this case, in order: `decision → action_executed →
+verification (unpaid) → webhook → verification (paid) → state_transition`.
+This is `SPEC.md 1`'s architecture diagram, verified to actually be true of
+the running code, not just true of a diagram.
+
 ## 14. Open Parameters (resolved during build, not blocking implementation)
 
 - Exact recovery-rate curves per signal combination (calibrate against plausible
