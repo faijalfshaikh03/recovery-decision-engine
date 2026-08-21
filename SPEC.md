@@ -246,6 +246,38 @@ step (§Recon) before this is finalized.
   card network/last4 correct
 - Webhook configuration requires Dashboard login (no general API for it on a
   standard merchant account) — done manually, not automatable by an agent
+- **Razorpay blocklists known public tunnel/webhook-testing hostnames** —
+  confirmed for both `webhook.site` and `loca.lt` ("hostname not allowed").
+  Worked around with a Cloudflare quick tunnel (`cloudflared tunnel --url ...`,
+  no account needed) — apparently not on the same blocklist. **Caveat for
+  later:** quick tunnels are ephemeral, the URL changes every restart — fine
+  for dev/recon, not viable as-is for demo day. Will need either a
+  freshly-started tunnel during the demo recording or a small stable
+  deployment closer to submission.
+- **Live webhook test, fully verified, not just docs-checked:** ran a real
+  ₹15,000 partial payment (of a ₹48,000 `accept_partial` link) through actual
+  browser checkout. Received real webhook deliveries for `payment.authorized`,
+  `payment.captured`, and `payment_link.partially_paid` — all with **valid
+  HMAC-SHA256 signatures independently recomputed and matched** against our
+  own webhook secret. `payment_link.partially_paid` payload matched docs
+  exactly: `amount_paid: 1500000`, `amount_due: 3300000`, all three entities
+  (payment_link/order/payment) present.
+  - **Unexpected finding:** only the 4 `payment_link.*` events were selected
+    in the Dashboard, but `payment.authorized`/`payment.captured` fired too —
+    worth double-checking the account's webhook event selection before relying
+    on an exact allowlist assumption.
+- **Cancellation is state-restricted:** attempted to cancel a partially-paid
+  link — rejected with `"cannot cancel or expire an already paid / partially
+  paid link"`. Real constraint, not in the docs we'd read; a cancel/stop path
+  in the policy engine needs to check payment state first, not just call the
+  API and assume it succeeds.
+- **Dedup logic verified against real + replayed traffic:** created and
+  cancelled a throwaway link to get a clean `payment_link.cancelled` sample,
+  captured its exact raw body + signature, then replayed it byte-for-byte at
+  our own receiver — correctly flagged `is_duplicate: true` on the second
+  delivery. Separately sent the same body with a corrupted signature — correctly
+  flagged `signature_valid: false`. Both halves of Failure A/C are now proven
+  against real captured Razorpay payloads, not synthetic test data.
 
 **Confirmed real capabilities (docs):**
 - Create Payment Link (standard/UPI) — `POST`
