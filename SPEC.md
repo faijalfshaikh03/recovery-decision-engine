@@ -251,9 +251,14 @@ step (§Recon) before this is finalized.
   Worked around with a Cloudflare quick tunnel (`cloudflared tunnel --url ...`,
   no account needed) — apparently not on the same blocklist. **Caveat for
   later:** quick tunnels are ephemeral, the URL changes every restart — fine
-  for dev/recon, not viable as-is for demo day. Will need either a
-  freshly-started tunnel during the demo recording or a small stable
-  deployment closer to submission.
+  for dev/recon, not viable as-is for demo day.
+  **Resolved:** confirmed via research that Cloudflare has no free stable
+  hostname without owning a domain - a hard platform limitation, not a
+  config gap. Decided against buying a domain or standing up hosting for a
+  one-time recording; built `scripts/start_demo_environment.sh` instead - a
+  one-shot script that restarts the webhook app, the UI, and a fresh tunnel,
+  then prints the URL to paste into the Dashboard before recording. Tested
+  end to end.
 - **Live webhook test, fully verified, not just docs-checked:** ran a real
   ₹15,000 partial payment (of a ₹48,000 `accept_partial` link) through actual
   browser checkout. Received real webhook deliveries for `payment.authorized`,
